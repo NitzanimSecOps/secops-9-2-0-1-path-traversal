@@ -5,7 +5,7 @@ import os
 FILES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "files")
 
 
-def find_file(name):
+def find_file(name: str) -> str | None:
     # the path of name if it is a real file inside FILES or one of its subfolders, otherwise None
     # (a file in a subfolder and a name like a..b.txt are fine; ../x, an absolute path and a
     # symlink that leads outside FILES are not)

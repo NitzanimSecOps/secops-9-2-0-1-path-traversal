@@ -5,7 +5,8 @@
 Starts your server.py in the background and asks it for the names below: files it creates in files/
 (with random names, so your own files stay untouched), a subfolder, a symlink that leads outside, a
 secret file next to server.py and a folder next to files/. Everything it created is removed at the
-end. Add your own cases.
+end. The downloads/ folder it makes is in a temporary folder, removed at the end, so your own
+downloads/ stays untouched. Add your own cases.
 """
 import os
 import secrets
@@ -13,13 +14,26 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 
 HOST = "127.0.0.1"
 PORT = 2405
 
 
+def port_is_taken():
+    try:
+        socket.create_connection((HOST, PORT), timeout=1).close()
+        return True
+    except OSError:
+        return False
+
+
 def main():
+    if port_is_taken():
+        print(f"Something (probably a server.py you started) is already listening on port {PORT}.")
+        print("Stop it with Ctrl+C in its window, then run selftest.py again.")
+        sys.exit(1)
     here = os.path.dirname(os.path.abspath(__file__))
     files = os.path.join(here, "files")
     tag = secrets.token_hex(4)
@@ -44,6 +58,7 @@ def main():
     created = []  # exactly what this run made, removed again at the end
     files_existed = os.path.isdir(files)
     server = None
+    work = tempfile.mkdtemp()  # download() saves into downloads/ under the current folder
     try:
         os.makedirs(files, exist_ok=True)
         os.makedirs(os.path.join(files, folder))
@@ -66,19 +81,23 @@ def main():
 
         server = subprocess.Popen([sys.executable, os.path.join(here, "server.py")], cwd=here)
         time.sleep(1)
+        if server.poll() is not None:
+            print("server.py stopped right after starting (its error is printed above).")
+            sys.exit(1)
         sys.path.insert(0, here)
         from client import download, run_command
+
+        os.chdir(work)
 
         with socket.create_connection((HOST, PORT)) as s:
             s.settimeout(10)
             for name, should in cases:
-                dest = os.path.join(here, f"downloaded_{tag}.tmp")
-                got = download(s, name, dest) is not None
-                if os.path.exists(dest):
-                    os.remove(dest)
+                got = download(s, name) is not None
                 print(("ok   " if got == should else "WRONG"), name, "- downloaded" if got else "- refused")
             print("still alive:", run_command(s, "echo yes"))
     finally:
+        os.chdir(here)
+        shutil.rmtree(work, ignore_errors=True)
         if server is not None:
             server.kill()
         for path in created:
