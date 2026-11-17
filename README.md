@@ -5,6 +5,7 @@ push — every push is graded automatically and the score syncs to Codo.
 
 ## Solve
 
+    attack.py
     client.py
     file_utils.py
     protocol.py
